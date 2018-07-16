@@ -1,100 +1,90 @@
-function sendHttpPost(message){
-  var token = ["jzB7BB2Dv4YV8V2YnhlgBo3y7WzwrjXfY4HGL32gnT3"];
-  var options =
-    {
-      "method"  : "post",
-      "payload" : {
-        "message": message
-        },
-      "headers" : {
-        "Authorization" : "Bearer "+ token,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      }
-    };
-  Logger.log(options)
+function doGet(e) {
+  if (!e.parameter.number) {
+    return HtmlService.createTemplateFromFile("plan").evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME);
+  }else{
+    var detail = HtmlService.createTemplateFromFile("plan_detail");
 
-  UrlFetchApp.fetch("https://notify-api.line.me/api/notify",options);
-}
+    if (e.parameter.number == -1) {
+      var last_edit_number = calculate_LastEditNumber()
+      detail.number = last_edit_number
+     }else {
+      var number = e.parameter.number;
+      detail.number = number;
+    }
 
-function myFunction() {
-  var message="Google App Scriptから送信" ;
-  Logger.log(message)
-  sendHttpPost(message);
-}
-
-function doPost(e) {
-  var message_type = e.parameter.message_type;
-  if (message_type == "plan") {
-    var user_name = e.parameter.user_name;
-    var plan_name = e.parameter.plan_name;
-    var plan_number = String(e.parameter.plan_number);
-    
-    var candidate_date1 = e.parameter.candidate_date1;
-    var candidate_date2 = e.parameter.candidate_date2;
-    var candidate_date3 = e.parameter.candidate_date3;
-    var dead_line = e.parameter.dead_line;
-    
-    var schedule_url = "https://script.google.com/macros/s/AKfycbzGwsn2XHNP5Pt2A3q9_rGy0pTJR06eLqeG3lT9Th5kuNmFwYc/exec?schedule_number="+plan_number+"&detail=-1&openExternalBrowser=1";
-    Logger.log(schedule_url)
-    
-    var message = user_name + " が " + plan_name + " を計画したぜぇ！" + String.fromCharCode(10)　+ String.fromCharCode(10) +
-      "候補日は, " + String.fromCharCode(10) + 
-      "1. " + candidate_date1 + String.fromCharCode(10) + 
-      "2. " + candidate_date2 + String.fromCharCode(10) +
-      "3. " + candidate_date3 + "だねぇ！" + String.fromCharCode(10) + String.fromCharCode(10) +
-      "締切日は" + dead_line + "っちゅうことかい？" + String.fromCharCode(10) + String.fromCharCode(10) +
-      "下のurlから出席の回答をしてくれよい！" + String.fromCharCode(10) + String.fromCharCode(10) +
-      schedule_url;
-  } else if(message_type == "schedule") {
-    var user_name = e.parameter.user_name;
-    var plan_name = e.parameter.plan_name;
-    var plan_number = e.parameter.plan_number;
-    
-    var candidate_date1 = e.parameter.candidate_date1;
-    var candidate_date2 = e.parameter.candidate_date2;
-    var candidate_date3 = e.parameter.candidate_date3;
-    
-    //candidate_date1 = Utilities.formatDate(candidate_date1, 'Asia/Tokyo', 'yyyy/MM/dd')
-    var status = e.parameter.status;
-    var answer_info = get_schedule_answer_msg(status);
-
-    var message = user_name + " が " + plan_name + " に回答したようだねぇ!" + String.fromCharCode(10)　+ String.fromCharCode(10) +
-      "1. " + candidate_date1 + answer_info["msg1"] + String.fromCharCode(10) +
-      "2. " + candidate_date2 + answer_info["msg2"] + String.fromCharCode(10) +
-      "3. " + candidate_date3 + answer_info["msg3"] + String.fromCharCode(10) + String.fromCharCode(10) +
-      "っちゅうことになるね";
-  } else {
-    var message = "[doPost]: line send error";
+    return detail.evaluate().setSandboxMode(HtmlService.SandboxMode.IFRAME);
   }
-  Logger.log(message)
-
-  sendHttpPost(message);
-  
-  payload = JSON.stringify({"response": "200"})
-  var output = ContentService.createTextOutput();
-  output.setMimeType(ContentService.MimeType.JSON);
-  output.setContent(payload);
-  return output
+  return HtmlService.createTemplateFromFile("plan_detail").evaluate();
 }
 
-function get_schedule_answer_msg(status) {
-  var good_msg = " は、ベネだねぇ！！";
-  var soso_msg = " は、、ほうほうだねぇ";
-  var bad_msg = " は、ちと、、、だねぇ";
-  var output_list = {};
+function calculate_LastEditNumber(){
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var LastRow = sheet.getRange("A1:A").getLastRow();
+  var indicateRow = calculateLastRow_down(sheet, LastRow, 1);
+
+  var data = sheet.getRange(2, 1, indicateRow-1-1, 8).getValues();
+  var sorted_data = ArrayLib.sort(data, 7-1, false)
+  var LastEditNumber = sorted_data[0][7];
+  return LastEditNumber
+}
+
+function insertNewInfo(button) {
+  if(button != "True") {
+    return
+  }
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var LastRow = sheet.getRange("A2:A").getLastRow();
+  insertNum = calculateLastRow_down(sheet, LastRow, 1)
   
-  var status_list = status.split("-");
+  arrData = [
+    ["企画" + String(insertNum-1), "企画名", "タイプ", "スケジュール", "店", "集合場所", "-", insertNum-1, "-"]
+  ];
+
+  var rows = arrData.length;
+  var cols = arrData[0].length;
   
-  for (i=0;i<status_list.length;i++) {
-    var number = i + 1;
-    if (status_list[i] == "2") {
-      output_list["msg"+number] = good_msg;
-    } else if(status_list[i] == "1") {
-      output_list["msg"+number] = soso_msg;
-    } else if(status_list[i] == "0"){
-      output_list["msg"+number] = bad_msg;
+  sheet.getRange(insertNum, 1, rows, cols).setValues(arrData)
+}
+
+function deleatNewInfo() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var LastRow = sheet.getRange("A1:A").getLastRow();
+  deleatNum = calculateLastRow_down(sheet, LastRow, 1) - 1
+  
+  sheet.getRange(deleatNum, 1).clear();
+}
+
+function getScriptUrl() {
+  var url = ScriptApp.getService().getUrl();
+  return url;
+}
+
+function calculateLastRow_up(sheet, LastRow, col) {
+  // col の最終行を計算する
+  for(var i = LastRow; i>=1; i--) {
+    if(sheet.getRange(i, col).getValue() != '') {
+      var j = i + 1;
+      return j
     }
   }
-  
-  return output_list
+}
+
+function calculateLastRow_down(sheet, LastRow, col) {
+  for(var i = 1; i<=LastRow; i++) {
+    if(sheet.getRange(i, col).getValue() == '') {
+      return i
+    }
+  }
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function updateRecord(number) {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var now = new Date();
+  var now_str = Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+  sheet.getRange(number+1, 7).clear()
+  sheet.getRange(number+1, 7).setValue(now_str)
 }
